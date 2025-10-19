@@ -1,0 +1,12 @@
+- ImageBase là địa chỉ mà file PE muốn được được nạp ngay tại đó khi nó được load lên, nếu địa chỉ này đã bị chiếm rồi thì hệ thống sẽ chọn một địa chỉ khác để nạp PE (này gọi là relocation)
+- RVA (Relative Virtual Address) là địa chỉ ảo tương đối được tính từ ImageBase, nó là một khoảng cách (offset) được tình từ ImageBase. Ví dụ: ImageBase là 0x00400000 và một hàm có RVA là 0x1000 thì khi nạp vào RAM thì địa chỉ ảo thực tế (VA) của hàm này sẽ là 0x00401000
+- VA (Virtual Address) là địa chỉ ảo thực tế trong RAM khi file PE được nạp. (VA = RVA + ImageBase)
+- Raw Address (Offset) là vị trí của dữ liệu trong file PE khi nó nằm trên ổ đĩa trước khi nạp lên RAM. Nó là số byte tính từ đầu file để tới dữ liệu mà ta muốn đọc. Khi mở file .exe bằng công cụ như hex editor (HxD, 010 Editor, WinHex...), thì thực tế đang nhìn trực tiếp vào Raw view của file — từng byte thực tế trên đĩa.
+
+* Trong header của mỗi section (trong bảng Section Table) có 2 giá trị quan trọng:
+- VirtualAddress: địa chỉ (RVA) mà section này sẽ nạp vào RAM
+- PointerToRawData: offset trong file nơi section này bắt đầu trên đĩa
+Còn các địa chỉ mà chúng ta muốn tìm, ví dụ dữ liệu trong section đó nằm ở đâu thì đó là RVA, khi cộng với ImageBase thì nó thành VA, rồi muốn tìm nó chính xác ở đâu trên đĩa thì cần phải tính offset của nó so với địa chỉ nơi section được nạp vào (ở đây là VA (phần dữ liệu muốn đọc) - VA (VA của section khi nạp)), sau khi có được offset (khoảng cách) thì để tính được nó thực sự nằm ở đâu trên đĩa thì cộng cho PointerToRawData (đây là địa chỉ mà section (mọi địa chỉ section được đề cập đều là địa chỉ đầu tiên của section đó)) thì sẽ có được địa chỉ của phần dữ liệu đó thực sự trên đĩa.
+
+
+* Các file PE chỉ lưu VA hoặc RVA (địa chỉ ảo) trong các bảng, không hề lưu Raw Offset. Muốn đọc đúng dữ liệu file trên đĩa phải tự parse, dựa vào bảng Section Table để quy đổi RVA ↔ Raw.

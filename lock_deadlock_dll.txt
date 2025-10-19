@@ -1,0 +1,30 @@
+hiểu được toàn bộ quy trình khi một file dll được load
+hiểu được lock / deadlock
+thực hiện đọc shellcode từ rsrc
+
+
+* Lock như là một cảnh cửa khóa các tài nguyên như biến, bộ nhớ, file, hoặc hàm. Chỉ có một process hoặc thread được mở và sử dụng tài nguyên đó tại một thời điểm thôi, các thread và process khác phải chờ đến khi được nhả lock.
+
+
+* Tại sao cần lock?: Trong môi trường đa luồng, nếu không có lock, nhiều luồng có thể truy cập tài nguyên cùng lúc, kết quả dễ gây ra:
+- Race Condition: ví dụ ở đây có biến x=5. Nếu không có lock thì A thực hiện đọc x (x=5), B cũng thực hiện đọc x (x=5). Tiếp theo A thực hiện tăng x lên 1 rồi ghi vào x=6, tương tự lúc này B cũng thực hiện tăng x lên 1 rồi ghi vào x=6. Tới đây thì chưa thấy gì, nhưng nếu thực tế là mong muốn hành động của A và B sẽ cho ra kết quả là 7 vì chúng ta muốn chúng thực hiện lần lượt mà đăng này nó thực hiện động thời nên nó dẫn đến kết quả chỉ  là 6. Vì nếu lần lượt thì A ghi vào x=6 thì B mới đọc x=6 rồi cộng 1 ghi x=7. Kiểu như muốn rằng không được ai đọc hay ghi gì trong lúc tôi đang thực hiện.
+- Deadlock: Các luồng chờ lẫn nhau.
+- Starvation: Một luồng chờ mãi không đến lượt.
+- Priority Inversion: Luồng ưu tiên cao chờ luồng ưu tiên thấp.
+
+* Cách hoạt động:
+- Acquire/Enter Lock: Luồng cố gắng "giữ lock". (Giống kiểu yêu cầu lock) Nếu lock đang bị giữ, luồng bị chặn (block) hoặc quay vòng chờ (spin).
+- Release/Leave Lock: Luồng thả lock sau khi dùng xong, cho phép luồng khác acquire.
+- Thời gian: Lock nên giữ ngắn nhất có thể để tránh làm chậm hệ thống.
+- Ví dụ tại một nhà vệ sinh công cộng (lock chính là chìa khóa vào cửa), người A đang sử dụng acquire lock để yêu cầu vào phòng và khóa của lại, khi đó người B sẽ phải chờ (block) ngoài cửa, khi người A release lock để mở cửa và ra ngoài thì người B có quyền acquire để vào. Nếu có B và C cùng chờ thì nó sẽ xét các điều kiện để cho phép B hoặc C vào.
+
+* Các loại Lock phổ biến trong OS:
+- Mutex: chỉ một thread/process giữ lock tại một thời điểm. Khi một thread không lấy được lock thì nó sẽ gọi syscall để block vào hàng đợi, khi lock được giải phóng thì kernel sẽ đánh thức một thread bên trong hàng đợi. Phải chuyển sang kernel mode (syscall), phù hợp khi thread giữ lock lâu.
+- Semaphore: có thể cho nhiều hoặc 1 (là mutex) 
+- Spinlock: thread/process sẽ liên tục kiểm tra lock được miễn chưa thay vì block/sleep khi biết lock đang được sử dụng. Phù hợp với thread giữ lock ngắn.
+- Read–Write Lock (RWLock): cho phép nhiều reader cùng lúc miễn là không có writer; writer phải độc quyền. Dùng khi đọc nhiều, ghi ít — tăng concurrency đọc.
+- Critical Section (Windows user-mode): là primitive (nguyên thủy) đồng bộ nhẹ trong Windows user-mode — nhanh hơn mutex vì không chuyển sang kernel-mode nếu không có tranh chấp. Khi có tranh chấp nặng, Critical Section có thể escalate (hoặc block) — nhưng thường rẻ hơn CreateMutex. Thực hiện user mode, khi có tranh chấp căng thì xuống kernel. Khi không lấy được lock thì sẽ spin một chút rồi mới block. Nhanh hơn.
+
+* Thông thường khi thực hiện load một file dll vào process thì nó sẽ thực hiện rất nhiều công việc như kiểm tra module list rằng dll này có chưa, map file dll vào memory, resolve imports, gọi DllMain, đưa thông tin DLL vào module list. Nếu như không có lock thì cả 2 hành động load dll đều thấy dll này chưa load rồi chúng sẽ thực hiện cùng load dll, dẫn đến sẽ có 2 bản khác nhau của cùng một DLL trong memory, DllMain sẽ thực hiện chạy 2 lanaf, rồi module list được thêm entry 2 lần, dẫn tới invariant bị phá.
+
+* Trường hợp dẫn đến deadlock với DllMain. Trong DLL_PROCESS_ATTACH của DllMain gọi một hàm loadlibrary để load một dll (ví dụ là B) khác. Khi load dll chính (ví dụ A), A chứa việc load B. Lúc này loader sẽ acquire loaderlock để thực hiện toàn bộ quá trình để load A một cách hoàn chỉnh, nhưng nếu trong lúc thực hiện quy trình đó thì A lại thực hiện load B, lúc này loader lại acquire một loaderlock để muốn load B lên, như vậy thì deadlock sẽ xảy ra. Hiểu theo cách đơn giản thì deadlock sẽ xảy ra nếu một tiến trình yêu cầu lock nếu tiến trình gọi nó đang giữ lock.
