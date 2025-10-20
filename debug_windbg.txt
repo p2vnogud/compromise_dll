@@ -1,0 +1,46 @@
+// reload lại module
+.symfix
+.reload
+
+// đặt break point
+bp ntdll!LdrpAcquireLoaderLock
+bp ntdll!LdrpReleaseLoaderLock
+bp kernelbase!CreateThread
+bp kernel32!WaitForSingleObject
+
+// resume
+g
+
+
+// xem stack
+k
+
+// liệt kê tất cả thread 
+~*k
+
+// chọn thread nhảy tới
+~<thread-id>s
+
+
+// xem locks
+!locks
+!locks -v
+
+// xem tất cả module được load
+lm
+
+
+// đặt break point cho dll
+bp dllA!DllMain
+
+
+// Xem địa chỉ tất cả api của kernel32 nhằm check có createthread không
+x kernel32!*Create*
+
+// createthread nó nằm trong thằng kernelbase
+bp kernelbase!CreateThread
+
+// xem địa chỉ load symbol
+.sympath
+
+
